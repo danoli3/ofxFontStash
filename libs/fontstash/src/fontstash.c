@@ -544,14 +544,14 @@ static struct ofx_sth_glyph* get_glyph(struct ofx_sth_stash* stash, struct ofx_s
 		if(stash->hasMipMap > 0){
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 8); //TODO check for hw support!
-#if defined(__ANDROID__) || defined(TARGET_OS_IPHONE_SIMULATOR) || (TARGET_IPHONE_SIMULATOR == 1) || (TARGET_OS_IPHONE == 1) || defined(TARGET_IPHONE)
+			#if defined(__ANDROID__) || defined(TARGET_OPENGLES) || defined(TARGET_RASPBERRY_PI)
 				// OpenGLES 1.0 does not support the following.
-#else
+			#else
 //			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS, -0.0); //shoot for sharper test
 //			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 3); // pick mipmap level 7 or lower
-			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS, -0.0);
+//			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS, -0.0);
 			glGenerateMipmap(GL_TEXTURE_2D);
-#endif
+			#endif
 		}
 		free(bmp);
 	}
@@ -608,9 +608,9 @@ void set_lod_bias(struct ofx_sth_stash* stash, float bias){
 		while (texture){
 			glEnable(GL_TEXTURE_2D);
 			glBindTexture(GL_TEXTURE_2D, texture->id);
-#ifndef TARGET_OS_IOS
+			#ifndef TARGET_OPENGLES
 			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS, bias);
-#endif
+			#endif
 			glBindTexture(GL_TEXTURE_2D, 0);
 			glDisable(GL_TEXTURE_2D);
 			texture = texture->next;
@@ -714,6 +714,7 @@ void ofx_sth_draw_text(struct ofx_sth_stash* stash,
 	float spacing = stash->charSpacing;
 	int doKerning = stash->doKerning;
 	int p = stash->padding;
+	float dpiScale = stash->dpiScale;
 	float tw = stash->padding / (float)stash->tw;
 
 	for (; *s; ++s)
@@ -733,7 +734,7 @@ void ofx_sth_draw_text(struct ofx_sth_stash* stash,
 			//printf("diff '%c' '%c' = %d\n", *(s-1), *s, diff);
 			x += diff * scale;
 		}
-		x += scale + spacing;
+		x += dpiScale * spacing;
 
 		v = &texture->verts[texture->nverts*4];
 
@@ -749,7 +750,7 @@ void ofx_sth_draw_text(struct ofx_sth_stash* stash,
 		c++;
 	}
 	
-	if (dx) *dx = x;
+	if (dx) *dx = x / dpiScale;
 }
 
 void ofx_sth_dim_text(struct ofx_sth_stash* stash,
@@ -778,7 +779,8 @@ void ofx_sth_dim_text(struct ofx_sth_stash* stash,
 	int c = 0;
 	float spacing = stash->charSpacing;
 	int doKerning = stash->doKerning;
-
+	float dpiScale = stash->dpiScale;
+	
 	for (; *s; ++s){
 		if (decutf8(&state, &codepoint, *(unsigned char*)s)) continue;
 		glyph = get_glyph(stash, fnt, codepoint, isize);
@@ -789,9 +791,9 @@ void ofx_sth_dim_text(struct ofx_sth_stash* stash,
 		if (c < len && doKerning > 0){
 			diff = ofx_stbtt_GetCodepointKernAdvance(&fnt->font, *(s), *(s+1));
 			//printf("diff '%c' '%c' = %d\n", *(s-1), *s, diff);
-			x += diff * scale + spacing;
+			x += diff * scale;
 		}
-		x += scale + spacing;
+		x += spacing;
 
 		if (q.x0 < *minx) *minx = q.x0;
 		if (q.x1 > *maxx) *maxx = q.x1;
@@ -799,7 +801,7 @@ void ofx_sth_dim_text(struct ofx_sth_stash* stash,
 		if (q.y0 < *maxy) *maxy = q.y0;		//idem
 		c++;
 	}
-	if (floorf(x) > *maxx) *maxx = floorf(x);
+	if (x > *maxx) *maxx = x;
 }
 
 void ofx_sth_vmetrics(struct ofx_sth_stash* stash,

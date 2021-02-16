@@ -8,16 +8,18 @@ void ofApp::setup(){
 	ofSetFrameRate(60);
 	ofBackground(22, 22, 22, 255);
 
-	font.setup("Vera.ttf", 1.0, 1024, true, 8, 1.0);
+	font.setup("Vera.ttf", 1.0, 1024, false, 8, 1.5);
 	font.addFont("VeraMono-Bold.ttf");
 	unicodeFont.setup("Arial Unicode.ttf", //font file, ttf only
 					  1.0,					//lineheight percent
 					  1024,					//texture atlas dimension
 					  true,					//create mipmaps of the font, useful to scale down the font at smaller sizes
 					  8,					//texture atlas element padding, shouldbe >0 if using mipmaps otherwise
-					  2.0f					//dpi scaleup, render textures @2x the reso
+					  1.5f					//dpi scaleup, render textures @2x the reso
 					  );					//lower res mipmaps wil bleed into each other
 
+	unicodeFont.setCharacterSpacing(0);
+	font.setCharacterSpacing(0);
 }
 
 void ofApp::update(){
@@ -28,18 +30,21 @@ void ofApp::update(){
 //--------------------------------------------------------------
 void ofApp::draw(){
 
-	float lineHeight = ofMap(mouseY, 0, ofGetHeight(), 0, 2, true);
+	float lineHeight = ofMap(mouseY, 0, ofGetHeight(), 0, 4, true);
+	ofDrawBitmapString("lineHeight: " + ofToString(lineHeight,2), ofGetWidth() - 138, ofGetHeight() - 14);
+
 	unicodeFont.setLineHeight(lineHeight);
 
 	float x = 30;
 	float y = 40;
-	
+	ofRectangle bbox;
+	ofRectangle bboxMultiline;
 	string demoText = "This is my text in BitStream Vera font.";
 	float fontSize = 28;
 
 	// simple demo //////////////////////////////////////////////////////////
 	
-	drawPoint(x, y);		//draw insertion point	
+	drawPoint(x, y);		//draw insertion point
 
 	ofSetColor(255);
 	TIME_SAMPLE_START("simple draw");
@@ -50,12 +55,30 @@ void ofApp::draw(){
 				  y			//y coord where to draw
 			  );
 	TIME_SAMPLE_STOP("simple draw");
-
+	
+	if(true){
+		auto words = {"aaa", "bbb", "sdguisd", "adfd gfsgsg"};
+		int xxx = 500;
+		float fontSize = 24;
+		float y = 500;
+		ofDrawLine(xxx, y, ofGetWidth(), y);
+		for(auto w : words){
+			ofRectangle r = font.getBBox(w, fontSize, xxx, y);
+			ofSetColor(255,0,0, 64);
+			ofDrawRectangle(r);
+			ofSetColor(255);
+			float xInc = font.draw(w, fontSize, xxx, y);
+			ofSetColor(0,255,0);
+			ofDrawCircle(xxx,y,1);
+			ofSetColor(255,33);
+			xxx += xInc;
+		}
+	}
+	
+	
 	// bounding box demo ///////////////////////////////////////////////////
-	ofRectangle bbox;
-	ofRectangle bboxMultiline;
 
-	ofSetColor(255, 0, 0, 32);
+	ofSetColor(0, 0, 255, 64);
 	TIME_SAMPLE_START("bbox");
 	bbox = font.getBBox( demoText, fontSize, x, y);
 	TIME_SAMPLE_STOP("bbox");
@@ -69,20 +92,28 @@ void ofApp::draw(){
 	ofSetColor(255);
 	string s = (string)"ofxFontStash can draw multiline text" + "\n" +
 	"It also supports unicode strings: " + "\n" +
-	"槊監しゅ祟䤂לרפובליקה. אם מיזם 銆銌 憉 圩芰敔 तकनिकल कार्यलय";
-
-	TIME_SAMPLE_START("drawMultiLine");
-	unicodeFont.drawMultiLine( s,  fontSize, x, y);
-	TIME_SAMPLE_STOP("drawMultiLine");
+	"槊監しゅ祟䤂לרפובליקה. אם מיזם銆銌 憉 圩芰敔 तकनिकल कार्यलय" + "\n" +
+	"bananas from russia!";
 	
+	ofAlignHorz align = OF_ALIGN_HORZ_CENTER;
+	float width = ofGetMouseX() - x; //when centering, we need a box w to center around
+	
+	TIME_SAMPLE_START("drawMultiLine");
+	bbox = unicodeFont.drawMultiLine( s, fontSize, x, y, align, width);
+	TIME_SAMPLE_STOP("drawMultiLine");
+	ofSetColor(0, 255, 255, 64);
+	ofRect( bbox );
+
 	// multiline bbox /////////////////////////////////////////////////////
 
-	ofSetColor(0, 255, 0, 32);
 	TIME_SAMPLE_START("getBoundingBoxSize");
-	bboxMultiline = unicodeFont.getBBox( s, fontSize, x, y);
+	bboxMultiline = unicodeFont.getBBox( s, fontSize, x, y, align, width);
 	TIME_SAMPLE_STOP("getBoundingBoxSize");
+	ofNoFill();
+	ofColor c; c.setHsb((44 * ofGetFrameNum())%255, 255, 255);
+	ofSetColor(c, 128);
 	ofRect( bboxMultiline );
-
+	ofFill();
 
 	// draw multiline column with a fixed width ///////////////////////////
 
@@ -90,24 +121,26 @@ void ofApp::draw(){
 	drawPoint(x, y); //draw insertion point
 
 	ofSetColor(255);
-	s = "And you can wrap text to a certain (mouseX) width:\n\nLorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.";
+	s = "And you can wrap text to a certain (mouseX) width:\n\nLorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.\n";
+	s += "總覺故歷身象果國家行、林年年顯我線覺們屋國驗態人！";
 	//s = "international bananas";
 
 	int numLines = 0;
 	bool wordsWereCropped;
 	ofRectangle column;
 	TIME_SAMPLE_START("drawMultiLineColumn");
-	column = font.drawMultiLineColumn(	s,			/*string*/
-										fontSize,	/*size*/
-										x, y,		/*where*/
-										MAX( 10 ,mouseX - x), /*column width*/
-										numLines,	/*get back the number of lines*/
-										false,		/* if true, we wont draw (just get bbox back) */
-										5,			/* max number of lines to draw, crop after that */
-										true,		/*get the final text formatting (by adding \n's) in the supplied string;
-													 BE ARWARE that using TRUE in here will modify your supplied string! */
-										&wordsWereCropped /* this bool will b set to true if the box was to small to fit all text*/
-									 );
+	column = unicodeFont.drawMultiLineColumn(	s,			/*string*/
+												16,			/*size*/
+												x, y,		/*where*/
+												MAX( 10, mouseX - x), /*column width*/
+												numLines,	/*get back the number of lines*/
+												false,		/* if true, we wont draw (just get bbox back) */
+												9,			/* max number of lines to draw, crop after that */
+												true,		/*get the final text formatting (by adding \n's) in the supplied string;
+															 BE ARWARE that using TRUE in here will modify your supplied string! */
+												&wordsWereCropped, /* this bool will b set to true if the box was to small to fit all text*/
+											 	true		/*centered*/
+											 );
 	TIME_SAMPLE_STOP("drawMultiLineColumn");
 
 
